@@ -1,28 +1,43 @@
-<% if @project_enumerations.any? %>
-  <div class="contextual">
-  </div>
-<% end %>
 <%
   if User.current.allowed_to?(:manage_project_enumerations, @project)
 -%>
 <p>
 <%
-    @enumeration_custom_fields_options.each do |cf_name, cf_id|
+    @enumeration_custom_fields_enabled_on_project_options.each do |cf_name, cf_id|
 -%>
-  <%= link_to "#{ l(:label_enumeration_new) } (#{cf_name})", new_project_project_enumerations_path(@project, :custom_field_id => cf_id, :back_url => ''), :class => 'icon icon-add' %><br/>
-
+  <b><%= cf_name %></b> :
+  <%= link_to "#{ l(:label_enumeration_new) }", project_project_enumerations_path(@project, :custom_field_id => cf_id, :back_url => ''), :class => 'icon icon-add' %>
+  <br/>
 <%
+    end
+
+    if @enumeration_custom_fields_not_enabled_on_project.any?
+-%>
+  <br/>
+  <u><%= l(:label_not_enabled_on_project) %> :</u><br/>
+<%
+      @enumeration_custom_fields_not_enabled_on_project.each do |cf|
+-%>
+  <b><%= cf.name %></b>
+  <br/>
+<%
+      end
     end
 -%>
 </p>
 <%
   end
+
+  if @project_enumerations.any?
 -%>
+  <div class="contextual">
+  </div>
+<% end %>
 <%= form_tag(settings_project_path(@project, :tab => 'project_enumerations'), :method => :get) do %>
 <fieldset><legend><%= l(:label_filter_plural) %></legend>
 
 <label for='enumeration_custom_field'><%= l(:label_custom_field) %>:</label>
-<%= select_tag 'enumeration_custom_field_id', options_for_select([[l(:label_all), '']] + @enumeration_custom_fields_options, @enumeration_custom_field_id), :onchange => "this.form.submit(); return false;" %>
+<%= select_tag 'enumeration_custom_field_id', options_for_select([[l(:label_all), '']] + @enumeration_custom_fields_enabled_on_project_options, @enumeration_custom_field_id), :onchange => "this.form.submit(); return false;" %>
 
 &nbsp;<label for='enumeration_value'><%= l(:label_project_enumeration_value) %>:</label>
 <%= text_field_tag 'enumeration_value', @enumeration_value, :size => 30 %>
@@ -41,22 +56,35 @@
 
 <% if @project_enumerations.present? %>
 <table class="list enumerations">
-  <thead><tr>
+  <thead>
+  <tr>
     <th><%= l(:label_custom_field) %></th>
     <th><%= l(:label_project_enumeration_value) %></th>
     <th><%= l(:field_status) %></th>
     <th><%= l(:field_sharing) %></th>
     <th style="width:15%"></th>
-    </tr></thead>
+  </tr>
+  </thead>
+
   <tbody>
 <%
     @project_enumerations.each do |project_enumeration|
       shared_enumeration = (project_enumeration.project != @project)
+
+      project_enumeration_value = ERB::Util.html_escape(project_enumeration.to_s)
+      if shared_enumeration
+        project_enumeration_value = (
+          project_enumeration_value +
+          ':&nbsp;&nbsp;('.html_safe +
+          link_to("#{l(:field_project)}&nbsp;:&nbsp;#{project_enumeration.project.name}".html_safe, project_project_enumerations_path(project_enumeration.project, :custom_field_id =>project_enumeration.custom_field_id)).html_safe +
+          ')'
+        ).html_safe
+      end
 -%>
     <tr class="project_enumeration <%= project_enumeration.status %> <%= 'shared' if shared_enumeration %>">
       <td class="custom_field"><%= custom_field_name_tag(project_enumeration.custom_field) %></td>
 
-      <td class="value <%= 'icon icon-shared' if shared_enumeration %>"><%= project_enumeration %></td>
+      <td class="value <%= 'icon icon-shared' if shared_enumeration %>"><%= project_enumeration_value %></td>
 
       <td class="status"><%= l("version_status_#{project_enumeration.status}") %></td>
 <%
@@ -68,8 +96,8 @@
 <%
       if !shared_enumeration && User.current.allowed_to?(:manage_project_enumerations, @project)
 -%>
-        <%= link_to l(:button_edit), edit_project_project_enumerations_path(@project, :id => project_enumeration), :class => 'icon icon-edit' %>
-        <%= delete_link project_project_enumerations_path(@project, :id => project_enumeration) %>
+        <%= link_to l(:button_edit), project_project_enumerations_path(@project, :custom_field_id => project_enumeration.custom_field_id), :class => 'icon icon-edit' %>
+        <%= delete_link destroy_project_project_enumerations_path(@project, :id => project_enumeration) %>
 <%
       end
 -%>

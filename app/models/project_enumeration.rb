@@ -53,13 +53,17 @@ class ProjectEnumeration < ActiveRecord::Base
     where(Project.allowed_to_condition(args.first || User.current, :view_issues))
   }
 
-  scope :order_by_custom_field_then_value, lambda { joins(:custom_field).order('custom_fields.name, value') }
+  scope :order_by_custom_field_then_position, lambda { joins(:custom_field).order('custom_fields.name, position') }
 
+  scope :for_enumerations, lambda { joins(:custom_field).where('custom_fields.field_format' => 'project_enumeration') }
+
+  scope :for_list_values, lambda { joins(:custom_field).where('custom_fields.field_format' => 'project_list_value') }
 
   safe_attributes 'value',
     'status',
     'sharing',
-    'custom_field_id'
+    'custom_field_id',
+    'position'
 
   # Returns true if +user+ or current user is allowed to view the enumerations
   def visible?(user=User.current)
@@ -109,7 +113,7 @@ class ProjectEnumeration < ActiveRecord::Base
   def self.fields_for_order_statement(table=nil)
     table ||= table_name
     [
-      "#{table}.value", "#{table}.id"
+      "#{table}.position, #{table}.value", "#{table}.id"
     ]
   end
 
@@ -139,5 +143,23 @@ class ProjectEnumeration < ActiveRecord::Base
   # Returns true if the enumeration is shared, otherwise false
   def shared?
     sharing != 'none'
+  end
+
+  def self.update_each(project, attributes, project_shared_enumerations)
+    transaction do
+      attributes.each do |project_enumeration_id, project_enumeration_attributes|
+        project_enumeration = project_shared_enumerations.find{|pe| pe.id.to_s == project_enumeration_id}
+        if project_enumeration
+          if block_given?
+            yield project_enumeration, project_enumeration_attributes
+          else
+            project_enumeration.safe_attributes = project_enumeration_attributes
+          end
+          unless project_enumeration.save
+            raise ActiveRecord::Rollback
+          end
+        end
+      end
+    end
   end
 end
